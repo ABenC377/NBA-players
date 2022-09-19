@@ -11,7 +11,7 @@ import mysql.connector
 from mysql.connector import Error
 
 mySQL_username = 'root'
-mySQL_password = 'Dexter123£'
+mySQL_password = '_________'
 mySQL_host_name = '127.0.0.0'
 mySQL_database_name = 'NbaData'
 
