@@ -339,9 +339,9 @@ def add_play_to_database(game_id, player_id, home, game_period, minutes, shot, f
 def next_period(previous_period):
     if previous_period == '1':
         return '2'
-    else if previous_period == '2':
+    elif previous_period == '2':
         return '3'
-    else if previous_period == '3':
+    elif previous_period == '3':
         return '4'
     else:
         return 'OT'
