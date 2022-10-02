@@ -1,3 +1,4 @@
+from turtle import home
 import requests
 from datetime import date, datetime, timedelta
 from bs4 import BeautifulSoup
@@ -10,20 +11,75 @@ import time
 
 
 def main():
-    # first we get the data we want from the NBA website - I STILL NEED TO IMPLEMENT THE DAYS BIT OF IT
-    games_data = get_data(number_of_previous_days)
+    # Check local database (if there is one) and get the list of games already saved
     
-    # Then we need to check if there is already a CSV file that we are using saved locally
 
-    # If not, then we need to make one
+    games_saved = set()
 
-    # Then save the data we have recieved to the CSV file
+    number_of_previous_days = int(input("How many days of games would you like to get the data for?\n"))
+
+    # first we get the data we want from the NBA website - I STILL NEED TO IMPLEMENT THE DAYS BIT OF IT
+    games_saved = get_data(number_of_previous_days, games_saved)
+
+    # Update the games_saved info in the database
 
     print('all finished')
 
+class Game_Data:
+    def __init__(self, date, away_team, home_team, game_link, away_scores, home_scores, plays):
+        self.date = date
+        self.away_team = away_team
+        self.home_team = home_team
+        self.game_link = game_link
+        self.away_scores = away_scores
+        self.home_scores = home_scores
+        self.plays = plays
 
+class Box_Score:
+    def __init__(self, game_link, player_name, home, played, started, seconds, FGM, FGA, TPM, TPA, FTM, FTA, ORB, DRB, assists, steals, blocks, TO, PF, plus_minus):
+        self.game_link = game_link
+        self.player_name = player_name
+        self.home = home
+        self.played = played
+        self.started = started
+        self.seconds = seconds
+        self.FGM = FGM
+        self.FGA = FGA
+        self.TPM = TPM
+        self.TPA = TPA
+        self.FTM = FTM
+        self.FTA = FTA
+        self.ORB = ORB
+        self.DRB = DRB
+        self.assists = assists
+        self.steals = steals
+        self.block = blocks
+        self.TO = TO
+        self.PF = PF
+        self.plus_minus = plus_minus
 
-def get_data(number_of_previous_days):
+class Play:
+    def __init__(self, game_ID, quarter, seconds, away_score, home_score, player1_ID, player2_ID, home, shot=False, made=False, attempted_points=0, substitution=False, ORB=False, DRB=False, steal=False, foul=False, shot_type="", block=False):
+        self.game_ID = game_ID
+        self.quarter = quarter
+        self.seconds = seconds
+        self.away_score = away_score
+        self.home_score = home_score
+        self.player1_ID = player1_ID
+        self.player2_ID = player2_ID
+        self.home = home
+        self.shot = shot
+        self.made = made
+        self.attempted_points = attempted_points
+        self.substitution = substitution
+        self.ORB = ORB
+        self.DRB = DRB
+        self.steal = steal
+        self.foul = foul
+        self.shot_type = shot_type
+        self.block = block
+
+def get_data(number_of_previous_days, games_already_saved):
     # make sure that the correct data type is passed into the get_data() function
     if type(number_of_previous_days) is not int:
         print('non-integer passed into get_data() function')
@@ -32,315 +88,210 @@ def get_data(number_of_previous_days):
         print('invalid number passed into get_data() function')
         return []
 
-    service = Service(executable_path=ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service)
     prefix = 'https://www.nba.com/games?date='
 
-    # this array will get the links for each of the games in the date range that we are looking at
-    game_links = []
-
     # this goes back over a number of days to get the HTTP links for the games that happened on those days.  
-    for n in range(number_of_previous_days):
-        # these lines just get the date in the format used by the NBA website
-        nth_date = date.today() - timedelta(days = n)
-        date_string = nth_date.strftime("%Y-%m-%d")
+    for n in range(number_of_previous_days, 0, -1):
+        
+        # Get the date in the format used by the NBA website
+        #nth_date = date.today() + timedelta(days = -n)
+        #nth_date_string = nth_date.strftime("%Y-%m-%d")
+        nth_date_string = "2022-02-08"
+
         # now we make a request for the webpage summarising the games on thaat date
-        nth_day_webpage_response = requests.get(prefix + date_string)
+        nth_day_webpage_response = requests.get(prefix + nth_date_string)
+        
         # we do some BS to get the links to the pages for the individual gamse
         nth_day_webpage = nth_day_webpage_response.content
         nth_day_html = BeautifulSoup(nth_day_webpage, "html.parser")
         nth_day_games_links = nth_day_html.select("a")
         # the only way I could think to do this with BS is to get all the links, and then filter out the ones that are not for game pages
+        
         for game in nth_day_games_links:
             if game["href"][0:5] == "/game" and len(game["href"]) == 27:
                 link = "https://www.nba.com" + game["href"]
                 # now we save the link to the game_links list
-                if (link, date_string) not in game_links:
-                    game_links.append((link, date_string))
+                if link not in games_already_saved:
+                    games_already_saved.add(link)
+                    game_obj = get_game_data(link, nth_date_string)
+                    save_game_data(game_obj)
 
-    # now we make a list of dictionaries for all the games that we are looking at
-    game_dicts = []
+    return games_already_saved
 
-    # we iterate through the links, and for each one get the box score, and the play-by-play.
-    # had to use Selenium for this one, as the info was loaded through JS and not in the initial HTML
-    for game_link in game_links:
-        driver.get(game_link[0] + "/box-score")
-        headers = driver.find_elements(By.TAG_NAME, "h1")
-        # all of the info for each game is going to be saved in a dictionary to make it easier to access each specific bit of info later
-        game_dict = {
-            "date": game_link[1]
-        }
-        for h in headers:
+def get_game_data(link, date_string):
+    service = Service(executable_path=ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service)
+
+    driver.get(link + "/box-score")
+
+    away_team = ""
+    home_team = ""
+
+    headers = driver.find_elements(By.TAG_NAME, "h1")
+    for h in headers:
             spans = h.find_elements(By.TAG_NAME, "span")
             for s in spans:
-                if "away" not in game_dict:
-                    game_dict["away"] = s.text
+                if away_team == "":
+                    away_team = s.text
                 else:
-                    game_dict["home"] = s.text
-        boxes = driver.find_elements(By.TAG_NAME, "table")
-        for b in boxes:
-            if "away_scores" not in game_dict:
-                game_dict["away_scores"] = b.text
-            else:
-                game_dict["home_scores"] = b.text
+                    home_team = s.text
+    
+    boxes = driver.find_elements(By.TAG_NAME, "table")
+    
+    away_scores_string = ""
+    home_scores_string = ""
+    for b in boxes:
+        if away_scores_string == "":
+            away_scores_string = b.text
+        else:
+            home_scores_string = b.text
 
+    away_starters, away_boxscores = get_boxscores(link, away_scores_string, False)
+    home_starters, home_boxscores = get_boxscores(link, home_scores_string, True)
 
-        driver.get(game_link[0] + "/play-by-play?period=All")
-        play_elements = driver.find_elements(By.TAG_NAME, "article")
-        plays = []
-        for p in play_elements:
-            plays.append(p.text)
-        game_dict["plays"] = plays
+    starters = list()
+    for starter in away_starters:
+        starters.append(starter)
+    for starter in home_starters:
+        starters.append(starter)
 
-        if game_dict not in game_dicts:
-            game_dicts.append(game_dict)
-    #Now we have all of the info for each of the games, we can close the driver
+    # Then we save all the plays
+    driver.get(link + "/play-by-play?period=All")
+    play_elements = driver.find_elements(By.TAG_NAME, "article")
+    plays_raw = []
+    for p in play_elements:
+        plays_raw.append(p.text)
+    plays = get_plays(link, plays_raw, starters)
+
+    game_obj = Game_Data(date=date_string, home_team=home_team, away_team=away_team, game_link=link, away_scores=away_boxscores, home_scores=home_boxscores, plays=plays)
+
+    # Now we have all of the info for each of the games, we can close the driver
     driver.quit()
 
-    return games
+    return game_obj
 
+def get_boxscores(link, boxscore_string, home):
+    starting_players = list()
 
-
-def add_game_to_database(date, home_team, away_team):
-    try:
-        connection = mysql.connector.connect(host=mySQL_host_name,
-                                         database=mySQL_database_name,
-                                         user=mySQL_username,
-                                         password=mySQL_password)
-        query_string = "INSERT INTO games (date, AwayTeam, HomeTeam) VALUES ({Date}, {Away_team}, {Home_team});".format(Date = date, Away_team = away_team, Home_team = home_team)
-
-        cursor = connection.cursor()
-        cursor.execute(query_string)
-        connection.commit()
-
-    except Error as e:
-        print("Error while connecting to MySQL", e)
-    finally:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
-
-
-# This function gets the player ID from SQL and takes the player that you're looking for's name as an argument
-def get_player_ID(player_name):
-    player_id;
-
-    # Make a SQL query to find the player_id
-    try:
-        connection = mysql.connector.connect(host=mySQL_host_name,
-                                         database=mySQL_database_name,
-                                         user=mySQL_username,
-                                         password=mySQL_password)
-        player_Query = "IF EXISTS (SELECT playerID FROM NbaData.players WHERE playerName = {name}) BEGIN SELECT playerID FROM NbaData.players WHERE playerName = {name} END ELSE SELECT '';".format(name = player_name)
-        cursor = connection.cursor()
-        cursor.execute(game_Query)
-        player_results = cursor.fetchall()
-        # we should check that this actually returns an ID
-        if len(player_results) == 0:
-            player_id = "none"
-        else:
-            player_id = player_results[0]
-    except mysql.connector.Error as e:
-        print("Error reading data from MySQL table", e)
-    finally:
-        if connection.is_connected():
-            connection.close()
-            cursor.close()
-
-    # If no ID was returned, then we need to add the player to the database
-    if player_id == 'none':
-        try:
-            connection = mysql.connector.connect(host=mySQL_host_name,
-                                             database=mySQL_database_name,
-                                             user=mySQL_username,
-                                             password=mySQL_password)
-            add_player_query = "INSERT INTO players (playerName) VALUES ({player_Name});".format(player_Name = player_name)
-            cursor = connection.cursor()
-            cursor.execute(query_string)
-            connection.commit()
-        except Error as e:
-            print("Error while connecting to MySQL", e)
-        finally:
-            if connection.is_connected():
-                cursor.close()
-                connection.close()
-        # Then we still need to get the ID of this newly added player
-        # We can do this recursively
-        return get_player_ID(player_name)
-
-    else:
-        return player_id
-
-
-
-def add_row_to_boxscore_table(game_id, player_id, Home, played, started, minutes, fieldGoalsMade, foeldGoalsAttempted, threePointersMade, threePointersAttempted, freeThrowsMade, freeThrowsAttempted, offensiveRebounds, defensiveRebounds, rebounds, assists, steals, blocks, turnOvers, personalFouls, plusMinue):
-    try:
-        connection = mysql.connector.connect(host=mySQL_host_name,
-                                         database=mySQL_database_name,
-                                         user=mySQL_username,
-                                         password=mySQL_password)
-        add_player_query = "INSERT INTO boxScores (game_id, player_id, Home, played, started, minutes, fieldGoalsMade, foeldGoalsAttempted, threePointersMade, threePointersAttempted, freeThrowsMade, freeThrowsAttempted, offensiveRebounds, defensiveRebounds, rebounds, assists, steals, blocks, turnOvers, personalFouls, plusMinue) VALUES ({Game_id}, {Player_id}, {HOme}, {Played}, {Started}, {Minutes}, {FieldGoalsMade}, {FoeldGoalsAttempted}, {ThreePointersMade}, {ThreePointersAttempted}, {FreeThrowsMade}, {FreeThrowsAttempted}, {OffensiveRebounds}, {DefensiveRebounds}, {Rebounds}, {Assists}, {Steals}, {Blocks}, {TurnOvers}, {PersonalFouls}, {PlusMinue});".format(Game_id = game_id, Player_id = player_id, HOme = Home, Played = played, Started = started, Minutes = minutes, FieldGoalsMade = fieldGoalsMade, FoeldGoalsAttempts = foeldGoalsAttempted, ThreePointersMade = threePointersMade, ThreePointersAttempted = threePointersAttempted, FreeThrowsMade = freeThrowsMade, FreeThrowsAttempted = freeThrowsAttempted, OffensiveRebounds = offensiveRebounds, DefensiveRebounds = defensiveRebounds, Rebounds = rebounds, Assists = assists, Steals = steals, Blocks = blocks, TurnOvers = turnOvers, PersonalFouls = personalFouls, PlusMinue = plusMinue)
-        cursor = connection.cursor()
-        cursor.execute(query_string)
-        connection.commit()
-    except Error as e:
-        print("Error while connecting to MySQL", e)
-    finally:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
-
-
-
-def add_boxscores_to_database(date, home_box, away_box):
-# This function adds all of the information for a game to the the boxscore executable_path
-# This function returns a list of the starting players in this game
-
-    # Firstly, we want to get the game id, so that we can add it to all of the boxscore entries for this game.
-    game_id;
-    try:
-        connection = mysql.connector.connect(host=mySQL_host_name,
-                                         database=mySQL_database_name,
-                                         user=mySQL_username,
-                                         password=mySQL_password)
-        game_Query = "SELECT id FROM NbaData.games WHERE AwayTeam = {awayTeam} AND HomeTeam = {homeTeam} AND date;".format(awayTeam = away_team, homeTeam = home_team)
-        cursor = connection.cursor()
-        cursor.execute(game_Query)
-        game_results = cursor.fetchall()
-        game_id = game_results[0]
-    except mysql.connector.Error as e:
-        print("Error reading data from MySQL table", e)
-    finally:
-        if connection.is_connected():
-            connection.close()
-            cursor.close()
-
-    away_players = add_team_boxscore_to_database(game_id, away_box, False)
-    home_players = add_team_boxscore_to_database(game_id, home_box, True)
-
-    return away_players + home_players
-
-
-def add_team_boxscore_to_database(game_id, team_box, Home)
-# This function adds the scores for an individual team to the boxscore database
-# This function returns the staring players for said team
-
-    starting_players = []
+    boxscores = list()
 
     # Then, we want to seperate out all of the individual rows of the box_score
     # The rows are separated by new lines
-    team_rows = team_box.split('\n')
+    team_rows = boxscore_string.split('\n')
 
     # the first row is always the header of the columns, and so we can ignore
     # After that, the name and starting position of each player are on seperate lines to that player's box score
     # Therefore, we will get the starters' info first (as they have three lines each), and then the bench's info.
-    for i in range(1, 17, 3):
+    for i in range(1, 16, 3):
 
         # First info is player_name.  We will need to turn this into a player_ID by consulting the players table
         player_name = team_rows[i]
-        player_id = get_player_ID(player_name);
-
         # We also append the player id to the list of starting players so that we can later pass this into the play-by-play database
-        starting_players.append(player_id);
-
-        # The player's presence in this section of the box score already tells us that they played and started for the home team
-        home = Home
-        played = True
-        started = True
+        starting_players.append(player_name)
 
         # Now we can seperate out the individual box scores (they are seperated by spaces) and assign them to variables
         player_box_scores = team_rows[i + 2].split()
 
-        minutes = player_box_scores[0];
-        fieldGoalsMade = player_box_scores[1];
-        foeldGoalsAttempted = player_box_scores[2];
-        threePointersMade = player_box_scores[4];
-        threePointersAttempted = player_box_scores[5];
-        freeThrowsMade = player_box_scores[7];
-        freeThrowsAttempted = player_box_scores[8];
-        offensiveRebounds = player_box_scores[10];
-        defensiveRebounds = player_box_scores[11];
-        rebounds = player_box_scores[12];
-        assists = player_box_scores[13];
-        steals = player_box_scores[14];
-        blocks = player_box_scores[15];
-        turnOvers = player_box_scores[16];
-        personalFouls = player_box_scores[17];
-        plusMinue = player_box_scores[19];
-        add_row_to_boxscore_table(game_id, player_id, home, played, started, minutes, fieldGoalsMade, foeldGoalsAttempted, threePointersMade, threePointersAttempted, freeThrowsMade, freeThrowsAttempted, offensiveRebounds, defensiveRebounds, rebounds, assists, steals, blocks, turnOvers, personalFouls, plusMinue)
+        minutes = player_box_scores[0]
+        seconds = get_seconds_from_minutes(minutes)
+        FGM = player_box_scores[1]
+        FGA = player_box_scores[2]
+        TPM = player_box_scores[4]
+        TPA = player_box_scores[5]
+        FTM = player_box_scores[7]
+        FTA = player_box_scores[8]
+        ORB = player_box_scores[10]
+        DRB = player_box_scores[11]
+        assists = player_box_scores[13]
+        steals = player_box_scores[14]
+        blocks = player_box_scores[15]
+        TO = player_box_scores[16]
+        PF = player_box_scores[17]
+        plus_minus = player_box_scores[19]
+        box_score = Box_Score(game_link=link, player_name=player_name, home=home, played=True, started=True, seconds=seconds, FGM=FGM, FGA=FGA, TPM=TPM, TPA=TPA, FTM=FTM, FTA=FTA, ORB=ORB, DRB=DRB, assists=assists, steals=steals, blocks=blocks, TO=TO, PF=PF, plus_minus=plus_minus)
+
+        boxscores.append(box_score)
 
     for i in range(17, len(team_rows), 2):
         player_name = team_rows[i]
-        player_id = get_player_ID(player_name);
-
-        # The player's presence in this section of the box score already tells us that they played and started for the home team
-        home = Home
-        started = False
 
         # We need to have a look in the boxscore to find out if the non-starting palyers actually Played
         # Therefore, we save the box score string for the player, and check if the first three characters are DNP
-        played;
         box_string = team_rows[i + 1]
-        if box_string[0:2] == "DNP"
-            played = False
-            add_row_to_boxscore_table(game_id, player_id, home, played, started, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+        if box_string[0:2] == "DNP" or box_string[0:2] == "DND":
+            box_score = Box_Score(game_link=link, player_name=player_name, home=home, played=False, started=False, seconds=0, FGM=0, FGA=0, TPM=0, TPA=0, FTM=0, FTA=0, ORB=0, DRB=0, assists=0, steals=0, blocks=0, TO=0, PF=0, plus_minus=0)   
+            
+            boxscores.append(box_score)
 
         else:
-            played = True
-            player_box_scores = home_rows[i + 1].split()
-            minutes = player_box_scores[0];
-            fieldGoalsMade = player_box_scores[1];
-            foeldGoalsAttempted = player_box_scores[2];
-            threePointersMade = player_box_scores[4];
-            threePointersAttempted = player_box_scores[5];
-            freeThrowsMade = player_box_scores[7];
-            freeThrowsAttempted = player_box_scores[8];
-            offensiveRebounds = player_box_scores[10];
-            defensiveRebounds = player_box_scores[11];
-            rebounds = player_box_scores[12];
-            assists = player_box_scores[13];
-            steals = player_box_scores[14];
-            blocks = player_box_scores[15];
-            turnOvers = player_box_scores[16];
-            personalFouls = player_box_scores[17];
-            plusMinue = player_box_scores[19];
-            add_row_to_boxscore_table(game_id, player_id, Home, played, started, minutes, fieldGoalsMade, foeldGoalsAttempted, threePointersMade, threePointersAttempted, freeThrowsMade, freeThrowsAttempted, offensiveRebounds, defensiveRebounds, rebounds, assists, steals, blocks, turnOvers, personalFouls, plusMinue)
-    return starting_players
+            minutes = player_box_scores[0]
+            seconds = get_seconds_from_minutes(minutes)
+            FGM = player_box_scores[1]
+            FGA = player_box_scores[2]
+            TPM = player_box_scores[4]
+            TPA = player_box_scores[5]
+            FTM = player_box_scores[7]
+            FTA = player_box_scores[8]
+            ORB = player_box_scores[10]
+            DRB = player_box_scores[11]
+            assists = player_box_scores[13]
+            steals = player_box_scores[14]
+            blocks = player_box_scores[15]
+            TO = player_box_scores[16]
+            PF = player_box_scores[17]
+            plus_minus = player_box_scores[19]
+            box_score = Box_Score(game_link=link, player_name=player_name, home=home, played=True, started=True, seconds=seconds, FGM=FGM, FGA=FGA, TPM=TPM, TPA=TPA, FTM=FTM, FTA=FTA, ORB=ORB, DRB=DRB, assists=assists, steals=steals, blocks=blocks, TO=TO, PF=PF, plus_minus=plus_minus)   
+            
+            boxscores.append(box_score)
+        
+        return starting_players, boxscores
 
+def get_seconds_from_minutes(minutes):
+    if len(minutes) < 2:
+        return 0
+    if minutes[1] == ":":
+        mins = int(minutes[0])
+        secs = int(minutes[2:])
+        total = (mins * 60) + secs
+        return total
+    elif minutes[2] == ":":
+        mins = int(minutes[:2])
+        secs = int(minutes[3:])
+        total = (mins * 60) + secs
+        return total
+    elif minutes[1] == ".":
+        return int(minutes[0])
+    elif minutes[2] == ".":
+        return int(minutes[:2])
+    else:
+        return 0
 
+def add_boxscore_to_database(box_score):
+    ___
 
-def add_plays_to_database(date, home_team, away_team, plays, starters):
-    # This function makes sense of the information from the play-by-play starting_players
-    period = '1'
-    last_minutes = datetime.strptime("12:00", "%M:%S")
+def get_plays(game_link, plays, starters):
+    play_objects = list()
+    
+    period = 1
+    last_seconds = 720
     away_players = starters[:5]
-    home_players = [5:]
+    home_players = starters[5:]
+
     for play in plays:
         information_pieces = play.split('\n')
-        if len(information_pieces == 0):
-            pass
-        else:
-            minutes = datetime.strptime(information_pieces[0], "%M:%S")
-            if (minutes > last_minutes):
-                period = next_period(period)
-            last_minutes = minutes
-            minutes_string = minute.strftime("%M:%S")
+        
+        if len(information_pieces) == 0:
+            continue
+            
+        minutes_string = information_pieces[0]
+        seconds = get_seconds_from_minutes(minutes_string)
+        if (seconds > last_seconds):
+            period += 1
+        last_seconds = seconds
 
+    return plays
 
-
-
-def add_play_to_database(game_id, player_id, home, game_period, minutes, shot, free_throw, made, distance, type_of_shot, assist, rebound, offensive, home_time_out, away_time_out, jump_ball_win, jump_ball_loss, violation, violation_text, foul, turnover, steal, block, substitution, incoming_player)
-
-
-def next_period(previous_period):
-    if previous_period == '1':
-        return '2'
-    elif previous_period == '2':
-        return '3'
-    elif previous_period == '3':
-        return '4'
-    else:
-        return 'OT'
 
 
 
