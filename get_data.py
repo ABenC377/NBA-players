@@ -11,7 +11,7 @@ import time
 
 def main():
     # first we get the data we want from the NBA website - I STILL NEED TO IMPLEMENT THE DAYS BIT OF IT
-    games_data = get_data(days)
+    games_data = get_data(number_of_previous_days)
     
     # Then we need to check if there is already a CSV file that we are using saved locally
 
@@ -22,15 +22,13 @@ def main():
     print('all finished')
 
 
-# Testing comment here 
 
-
-def get_data(days):
-    #make sure that the correct data type is passed into the get_data() function
-    if type(days) is not int:
+def get_data(number_of_previous_days):
+    # make sure that the correct data type is passed into the get_data() function
+    if type(number_of_previous_days) is not int:
         print('non-integer passed into get_data() function')
         return []
-    if days <= 0:
+    if number_of_previous_days <= 0:
         print('invalid number passed into get_data() function')
         return []
 
@@ -38,64 +36,64 @@ def get_data(days):
     driver = webdriver.Chrome(service=service)
     prefix = 'https://www.nba.com/games?date='
 
-    #this variable will save the links for each of the games in the date range that we are looking at
+    # this array will get the links for each of the games in the date range that we are looking at
     game_links = []
 
-    #this goes back over a number of days to get the HTTP links for the games that happened on those days.  currently, it is hard coded for one day (i.e., yesterday)
-    for n in range(1):
-        #these lines just get the date in the format used by the NBA website
-        nth_date = date.today() + timedelta(-1 + n)
+    # this goes back over a number of days to get the HTTP links for the games that happened on those days.  
+    for n in range(number_of_previous_days):
+        # these lines just get the date in the format used by the NBA website
+        nth_date = date.today() - timedelta(days = n)
         date_string = nth_date.strftime("%Y-%m-%d")
-        #now we make a request for the webpage summarising the games on thaat date
+        # now we make a request for the webpage summarising the games on thaat date
         nth_day_webpage_response = requests.get(prefix + date_string)
-        #we do some BS to get the links to the pages for the individual gamse
+        # we do some BS to get the links to the pages for the individual gamse
         nth_day_webpage = nth_day_webpage_response.content
         nth_day_html = BeautifulSoup(nth_day_webpage, "html.parser")
         nth_day_games_links = nth_day_html.select("a")
-        #the only way I could think to do this with BS is to get all the links, and then filter out the ones that are not for game pages
+        # the only way I could think to do this with BS is to get all the links, and then filter out the ones that are not for game pages
         for game in nth_day_games_links:
             if game["href"][0:5] == "/game" and len(game["href"]) == 27:
                 link = "https://www.nba.com" + game["href"]
-                #now we save the link to the game_links list
-                if [link, date_string] not in game_links:
-                    game_links.append([link, date_string])
+                # now we save the link to the game_links list
+                if (link, date_string) not in game_links:
+                    game_links.append((link, date_string))
 
-    #now we make a list of all the games that we are looking at.  Currently empty
-    games = []
+    # now we make a list of dictionaries for all the games that we are looking at
+    game_dicts = []
 
-    #we iterate through the links, and for each one get the box score, and the play-by-play.
-    #had to use Selenium for this one, as the info was loaded through JS and not in the HTML
-    for game in game_links:
-        driver.get(game[0] + "/box-score")
+    # we iterate through the links, and for each one get the box score, and the play-by-play.
+    # had to use Selenium for this one, as the info was loaded through JS and not in the initial HTML
+    for game_link in game_links:
+        driver.get(game_link[0] + "/box-score")
         headers = driver.find_elements(By.TAG_NAME, "h1")
-        #all of the info for each game is going to be saved in a dictionary to make it easier to access each specific bit of info later
-        the_game = {
-            "date": game[1]
+        # all of the info for each game is going to be saved in a dictionary to make it easier to access each specific bit of info later
+        game_dict = {
+            "date": game_link[1]
         }
         for h in headers:
             spans = h.find_elements(By.TAG_NAME, "span")
             for s in spans:
-                if "away" not in the_game:
-                    the_game["away"] = s.text
+                if "away" not in game_dict:
+                    game_dict["away"] = s.text
                 else:
-                    the_game["home"] = s.text
+                    game_dict["home"] = s.text
         boxes = driver.find_elements(By.TAG_NAME, "table")
         for b in boxes:
-            if "away_scores" not in the_game:
-                the_game["away_scores"] = b.text
+            if "away_scores" not in game_dict:
+                game_dict["away_scores"] = b.text
             else:
-                the_game["home_scores"] = b.text
+                game_dict["home_scores"] = b.text
 
 
-        driver.get(game[0] + "/play-by-play?period=All")
+        driver.get(game_link[0] + "/play-by-play?period=All")
         play_elements = driver.find_elements(By.TAG_NAME, "article")
         plays = []
         for p in play_elements:
             plays.append(p.text)
-        the_game["plays"] = plays
+        game_dict["plays"] = plays
 
-        if the_game not in games:
-            games.append(the_game)
+        if game_dict not in game_dicts:
+            game_dicts.append(game_dict)
     #Now we have all of the info for each of the games, we can close the driver
     driver.quit()
 
