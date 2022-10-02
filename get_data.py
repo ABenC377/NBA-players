@@ -7,22 +7,18 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 import time
-import mysql.connector
-from mysql.connector import Error
 
-mySQL_username = 'root'
-mySQL_password = '_________'
-mySQL_host_name = '127.0.0.0'
-mySQL_database_name = 'NbaData'
 
 def main():
     # first we get the data we want from the NBA website - I STILL NEED TO IMPLEMENT THE DAYS BIT OF IT
     games_data = get_data(days)
-    for game in games_data:
-        #then we add the data to our database
-        add_game_to_database(game["date"], game["home"], game["away"])
-        starters_info = add_boxscore_to_database(game["date"], game["home_scores"], game["away_scores"])
-        add_plays_to_database(game["date"], game["home"], game["away"], starters_info)
+    
+    # Then we need to check if there is already a CSV file that we are using saved locally
+
+    # If not, then we need to make one
+
+    # Then save the data we have recieved to the CSV file
+
     print('all finished')
 
 
@@ -339,9 +335,9 @@ def add_play_to_database(game_id, player_id, home, game_period, minutes, shot, f
 def next_period(previous_period):
     if previous_period == '1':
         return '2'
-    else if previous_period == '2':
+    elif previous_period == '2':
         return '3'
-    else if previous_period == '3':
+    elif previous_period == '3':
         return '4'
     else:
         return 'OT'
