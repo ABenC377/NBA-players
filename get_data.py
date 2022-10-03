@@ -94,14 +94,16 @@ def get_data(number_of_previous_days, games_already_saved):
     for n in range(number_of_previous_days, 0, -1):
         
         # Get the date in the format used by the NBA website
-        #nth_date = date.today() + timedelta(days = -n)
-        #nth_date_string = nth_date.strftime("%Y-%m-%d")
-        nth_date_string = "2022-02-08"
+        nth_date = date.today() + timedelta(days = -n)
+        nth_date_string = nth_date.strftime("%Y-%m-%d")
+        #nth_date_string = "2022-02-08"
 
         # now we make a request for the webpage summarising the games on thaat date
-        nth_day_webpage_response = requests.get(prefix + nth_date_string)
+        nth_day_webpage_response = requests.get(prefix + nth_date_string, timeout=1)
+        if nth_day_webpage_response.status_code == None:
+            continue
         
-        # we do some BS to get the links to the pages for the individual gamse
+        # we do some BS to get the links to the pages for the individual game
         nth_day_webpage = nth_day_webpage_response.content
         nth_day_html = BeautifulSoup(nth_day_webpage, "html.parser")
         nth_day_games_links = nth_day_html.select("a")
@@ -267,9 +269,6 @@ def get_seconds_from_minutes(minutes):
     else:
         return 0
 
-def add_boxscore_to_database(box_score):
-    ___
-
 def get_plays(game_link, plays, starters):
     play_objects = list()
     
@@ -293,7 +292,8 @@ def get_plays(game_link, plays, starters):
     return plays
 
 
-
+def save_game_data(game_object):
+    ____
 
 if __name__ == '__main__':
     main()
