@@ -262,7 +262,7 @@ def get_boxscores(link, boxscore_string, home):
 
         boxscores.append(box_score)
 
-    for i in range(17, len(team_rows), 2):
+    for i in range(17, len(team_rows) - 1, 2):
         player_name = team_rows[i]
         players.append(player_name)
 
@@ -270,7 +270,7 @@ def get_boxscores(link, boxscore_string, home):
         # Therefore, we save the box score string for the player, and check if the first three characters are DNP
         box_string = team_rows[i + 1]
 
-        if box_string[0:2] == "DNP" or box_string[0:2] == "DND":
+        if len(box_string) < 2 or box_string[0:2] == "DNP" or box_string[0:2] == "DND":
             box_score = Box_Score(game_link=link, player_name=player_name, home=home, played=False, started=False, seconds=0, FGM=0, FGA=0, TPM=0, TPA=0, FTM=0, FTA=0, ORB=0, DRB=0, assists=0, steals=0, blocks=0, TO=0, PF=0, plus_minus=0)   
             
             boxscores.append(box_score)
@@ -365,7 +365,9 @@ def get_plays(game_link, plays_raw, away_players, home_players, starters):
                 home_team = True
             shot_distance_string = play_text_pieces[2]
             shot_distance = int(shot_distance_string[:-1])
-            shot_text = play_text_pieces[3:].join(' ')
+            shot_text = ""
+            for piece in play_text_pieces[3:]:
+                shot_text += ' ' + piece
             points = 2
             if '3PT' in play_text_pieces:
                 points = 3
@@ -383,6 +385,7 @@ def get_plays(game_link, plays_raw, away_players, home_players, starters):
             if scorer in home_players:
                 home_team = True
             shot_distance_string = play_text_pieces[1]
+            print(shot_distance_string)
             shot_distance = int(shot_distance_string[:-1])
             points = 2
             if '3PT' in play_text_pieces:
@@ -392,13 +395,17 @@ def get_plays(game_link, plays_raw, away_players, home_players, starters):
                 points = 1
                 text_start_index = 1
                 text_end_index = play_text_pieces.index("PTS)") - 1
-                shot_text = play_text_pieces[text_start_index:text_end_index].join(" ")
+                shot_text = ""
+                for piece in play_text_pieces[text_start_index:text_end_index]:
+                    shot_text += ' ' + piece
                 play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720 - seconds), away_score=away_score, home_score=home_score, current_away_5=current_away_players, current_home_5=current_home_players, player1_ID=scorer, home_team=home_team, shot=True, made=True, attempted_points=points, shot_type=shot_text))
 
             else:
                 text_start_index = 2
                 text_end_index = play_text_pieces.index("PTS)") - 1
-                shot_text = play_text_pieces[text_start_index:text_end_index].join(" ")
+                shot_text = ""
+                for piece in play_text_pieces[text_start_index:text_end_index]:
+                    shot_text += ' ' + piece
 
                 if "AST)" in play_text_pieces:
                     assist_index = play_text_pieces.index("AST)")
