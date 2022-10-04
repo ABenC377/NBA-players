@@ -20,9 +20,10 @@ def main():
     
     # If there is not the desired directory, then make it.
     os.makedirs('../../NBA data', exist_ok=True)
-
-    if Path('../../NBA data/data.csv').exists():
-        with open('../../NBA data/data.csv', 'r') as existing_data_file:
+    file_exists = False
+    if Path('../../NBA data/games.csv').exists():
+        file_exists = True
+        with open('../../NBA data/games.csv', 'r') as existing_data_file:
             existing_game_data = csv.DictReader(existing_data_file)
             for row in existing_game_data:
                 games_saved.add(row['game_link'])
@@ -30,19 +31,35 @@ def main():
     number_of_previous_days = int(input("How many days of games would you like to get the data for?\n"))
 
     # We get the data for the games played on those days from the NBA website
+    # Currently, only shots, rebounds and assists are being picked out from the plays
     games_played, boxscores, plays = get_data(number_of_previous_days, games_saved)
 
-    """
+
     # Then we update our CSV files
-    for game in games_played:
+    with open('../../NBA data/games.csv', 'a') as game_data_file:
+        fieldnames = ['date', 'away_team', 'home_team', 'game_link']
+        writer = csv.DictWriter(game_data_file, fieldnames=fieldnames)
+        if file_exists == False:
+            writer.writeheader()
+        for game in games_played:
+            writer.writerow({'date': game.date, 'away_team': game.away_team, 'home_team': game.home_team, 'game_link': game.game_link})
 
+    with open('../../NBA data/boxscores.csv', 'a') as boxscore_data_file:
+        fieldnames = ['game_link', 'player_name', 'home', 'played', 'started', 'seconds', 'FGM', 'FGA', 'TPM', 'TPA', 'FTM', 'FTA', 'ORB', 'DRB', 'assists', 'steals', 'blocks', 'TO', 'PF', 'plus_minus']
+        writer = csv.DictWriter(boxscore_data_file, fieldnames=fieldnames)
+        if file_exists == False:
+            writer.writeheader()
+        for boxscore in boxscores:
+            writer.writerow({'game_link': boxscore.game_link, 'player_name': boxscore.player_name, 'home': boxscore.home, 'played': boxscore.played, 'started': boxscore.started, 'seconds': boxscore.seconds, 'FGM': boxscore.FGM, 'FGA': boxscore.FGA, 'TPM': boxscore.TPM, 'TPA': boxscore.TPA, 'FTM': boxscore.FTM, 'FTA': boxscore.FTA, 'ORB': boxscore.ORB, 'DRB': boxscore.DRB, 'assists': boxscore.assists, 'steals': boxscore.steals, 'blocks': boxscore.blocks, 'TO': boxscore.TO, 'PF': boxscore.PF, 'plus_minus': boxscore.plus_minus})
 
-    for boxscore in boxscores:
-    
+    with open('../../NBA data/plays.csv', 'a') as plays_data_file:
+        fieldnames = ['game_link', 'quarter', 'seconds', 'away_score', 'home_score', 'current_away_5', 'current_home_5', 'player1_ID', 'player2_ID', 'home_team', 'shot', 'made', 'attempted_points', 'shot_distance', 'shot_type', 'substitution', 'ORB', 'DRB', 'steal', 'foul', 'block']
+        writer = csv.DictWriter(plays_data_file, fieldnames=fieldnames)
+        if file_exists == False:
+            writer.writeheader()
+        for play in plays:
+            writer.writerow({'game_link': play.game_link, 'quarter': play.quarter, 'seconds': play.seconds, 'away_score': play.away_score, 'home_score': play.home_score, 'current_away_5': play.current_away_5, 'current_home_5': play.current_home_5, 'player1_ID': play.player1_ID, 'player2_ID': play.player2_ID, 'home_team': play.home_team, 'shot': play.shot, 'made': play.made, 'attempted_points': play.attempted_points, 'shot_distance': play.shot_distance, 'shot_type': play.shot_type, 'substitution': play.substitution, 'ORB': play.ORB, 'DRB': play.DRB, 'steal': play.steal, 'foul': play.foul, 'block': play.block})
 
-    for play in plays:
-
-    """
     print('all finished')
 
 class Game_Data:
@@ -76,12 +93,14 @@ class Box_Score:
         self.plus_minus = plus_minus
 
 class Play:
-    def __init__(self, game_link, quarter, seconds, away_score, home_score, player1_ID="", player2_ID="", home_team, shot=False, made=False, attempted_points=0, shot_distance=0, shot_type="", substitution=False, ORB=False, DRB=False, steal=False, foul=False, block=False):
+    def __init__(self, game_link, quarter, seconds, away_score, home_score, current_away_5, current_home_5, home_team, player1_ID="", player2_ID="", shot=False, made=False, attempted_points=0, shot_distance=0, shot_type="", substitution=False, ORB=False, DRB=False, steal=False, foul=False, block=False):
         self.game_link = game_link
         self.quarter = quarter
         self.seconds = seconds
         self.away_score = away_score
         self.home_score = home_score
+        self.current_away_5 = current_away_5
+        self.current_home_5 = current_home_5
         self.player1_ID = player1_ID
         self.player2_ID = player2_ID
         self.home_team = home_team
@@ -175,8 +194,8 @@ def get_game_data(link, date_string):
         else:
             home_scores_string = b.text
 
-    away_starters, away_boxscores = get_boxscores(link, away_scores_string, False)
-    home_starters, home_boxscores = get_boxscores(link, home_scores_string, True)
+    away_players, away_starters, away_boxscores = get_boxscores(link, away_scores_string, False)
+    home_players, home_starters, home_boxscores = get_boxscores(link, home_scores_string, True)
 
     starters = list()
     for starter in away_starters:
@@ -190,7 +209,7 @@ def get_game_data(link, date_string):
     plays_raw = []
     for p in play_elements:
         plays_raw.append(p.text)
-    plays = get_plays(link, plays_raw, starters)
+    plays = get_plays(link, plays_raw, away_players, home_players, starters)
 
     game_obj = Game_Data(date=date_string, home_team=home_team, away_team=away_team, game_link=link)
 
@@ -201,6 +220,7 @@ def get_game_data(link, date_string):
 
 def get_boxscores(link, boxscore_string, home):
     starting_players = list()
+    players = list()
 
     boxscores = list()
 
@@ -217,6 +237,7 @@ def get_boxscores(link, boxscore_string, home):
         player_name = team_rows[i]
         # We also append the player id to the list of starting players so that we can later pass this into the play-by-play database
         starting_players.append(player_name)
+        players.append(player_name)
 
         # Now we can seperate out the individual box scores (they are seperated by spaces) and assign them to variables
         player_box_scores = team_rows[i + 2].split()
@@ -243,6 +264,7 @@ def get_boxscores(link, boxscore_string, home):
 
     for i in range(17, len(team_rows), 2):
         player_name = team_rows[i]
+        players.append(player_name)
 
         # We need to have a look in the boxscore to find out if the non-starting palyers actually Played
         # Therefore, we save the box score string for the player, and check if the first three characters are DNP
@@ -274,7 +296,7 @@ def get_boxscores(link, boxscore_string, home):
             
             boxscores.append(box_score)
         
-        return starting_players, boxscores
+    return players, starting_players, boxscores
 
 def get_seconds_from_minutes(minutes):
     if len(minutes) < 2:
@@ -296,15 +318,17 @@ def get_seconds_from_minutes(minutes):
     else:
         return 0
 
-def get_plays(game_link, plays_raw, starters):
+def get_plays(game_link, plays_raw, away_players, home_players, starters):
     print(plays_raw)
     
     play_objects = list()
     
+    rebound_tally = dict()
+
     period = 1
     last_seconds = 720
-    away_players = starters[:5]
-    home_players = starters[5:]
+    current_away_players = starters[:5]
+    current_home_players = starters[5:]
 
     away_score = 0
     home_score = 0
@@ -325,22 +349,85 @@ def get_plays(game_link, plays_raw, starters):
         
         if len(information_pieces) == 3:
             scores = information_pieces[1].split(' - ')
-            away_score = scores[0]
-            home_score = scores[1]
+            away_score = int(scores[0])
+            home_score = int(scores[1])
 
             text = information_pieces[2]
         
 
         play_text_pieces = text.split(' ')
-        if play_text_pieces[0] == "MISS":
+
+        # If the play is a MISS
+        if "MISS" in play_text_pieces:
             scorer = play_text_pieces[1]
-            home_team = 
-            points = 
-            shot_distance = play_text_pieces
-            shot_text = 
-            play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720-seconds), away_score=away_score, home_score=home_score, player1_ID=scorer, home_team=home_team, shot=True, made=False, attempted_points=points, shot_distance=shot_distance, shot_type=shot_text))
+            home_team = False
+            if scorer in home_players:
+                home_team = True
+            shot_distance_string = play_text_pieces[2]
+            shot_distance = int(shot_distance_string[:-1])
+            shot_text = play_text_pieces[3:].join(' ')
+            points = 2
+            if '3PT' in play_text_pieces:
+                points = 3
+            if "Free" in play_text_pieces:
+                shot_text = play_text_pieces[2:].join(' ')
+                points = 1
+                play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720-seconds), away_score=away_score, home_score=home_score, current_away_5=current_away_players, current_home_5=current_home_players, player1_ID=scorer, home_team=home_team, shot=True, made=False, attempted_points=points, shot_type=shot_text))
+            else:
+                play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720-seconds), away_score=away_score, home_score=home_score, current_away_5=current_away_players, current_home_5=current_home_players, player1_ID=scorer, home_team=home_team, shot=True, made=False, attempted_points=points, shot_distance=shot_distance, shot_type=shot_text))
+
+        # If it is a make
+        elif "PTS)" in play_text_pieces:
+            scorer = play_text_pieces[0]
+            home_team = False
+            if scorer in home_players:
+                home_team = True
+            shot_distance_string = play_text_pieces[1]
+            shot_distance = int(shot_distance_string[:-1])
+            points = 2
+            if '3PT' in play_text_pieces:
+                points = 3
+            
+            if "Free" in play_text_pieces:
+                points = 1
+                text_start_index = 1
+                text_end_index = play_text_pieces.index("PTS)") - 1
+                shot_text = play_text_pieces[text_start_index:text_end_index].join(" ")
+                play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720 - seconds), away_score=away_score, home_score=home_score, current_away_5=current_away_players, current_home_5=current_home_players, player1_ID=scorer, home_team=home_team, shot=True, made=True, attempted_points=points, shot_type=shot_text))
+
+            else:
+                text_start_index = 2
+                text_end_index = play_text_pieces.index("PTS)") - 1
+                shot_text = play_text_pieces[text_start_index:text_end_index].join(" ")
+
+                if "AST)" in play_text_pieces:
+                    assist_index = play_text_pieces.index("AST)")
+                    assist = play_text_pieces[assist_index - 2]
+                    assist = assist[1:]
+                    play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720 - seconds), away_score=away_score, home_score=home_score, current_away_5=current_away_players, current_home_5=current_home_players, player1_ID=scorer, player2_ID=assist, home_team=home_team, shot=True, made=True, attempted_points=points, shot_type=shot_text, shot_distance=shot_distance))
+                else:
+                    play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720 - seconds), away_score=away_score, home_score=home_score, current_away_5=current_away_players, current_home_5=current_home_players, player1_ID=scorer, home_team=home_team, shot=True, made=True, attempted_points=points, shot_type=shot_text, shot_distance=shot_distance))
 
 
+        # If it is a rebound
+        elif "REBOUND" in play_text_pieces:
+            rebounder = play_text_pieces[0]
+            home_team = False
+            if rebounder in home_players:
+                home_team = True
+
+            offensive, defensive = rebound_tally.get(rebounder, (0, 0))
+            offensive_text = play_text_pieces[2]
+            offensive_total = int(offensive_text[5])
+            defensive_text = play_text_pieces[3]
+            defensive_total = int(defensive_text[4])
+            if offensive_total > offensive:
+                play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720-seconds), away_score=away_score, home_score=home_score, current_away_5=current_away_players, current_home_5=current_home_players, player1_ID=rebounder, home_team=home_team, ORB=True))
+                offensive += 1
+            else:
+                play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720-seconds), away_score=away_score, home_score=home_score, current_away_5=current_away_players, current_home_5=current_home_players, player1_ID=rebounder, home_team=home_team, DRB=True))
+                defensive += 1
+            rebound_tally[rebounder] = (offensive, defensive)
     return play_objects
 
 if __name__ == '__main__':
