@@ -1,13 +1,10 @@
-from turtle import home
 import requests
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
-import time
 import csv
 import os
 from pathlib import Path
