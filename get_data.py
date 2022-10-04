@@ -87,7 +87,7 @@ class Box_Score:
         self.DRB = DRB
         self.assists = assists
         self.steals = steals
-        self.block = blocks
+        self.blocks = blocks
         self.TO = TO
         self.PF = PF
         self.plus_minus = plus_minus
@@ -364,7 +364,9 @@ def get_plays(game_link, plays_raw, away_players, home_players, starters):
             if scorer in home_players:
                 home_team = True
             shot_distance_string = play_text_pieces[2]
-            shot_distance = int(shot_distance_string[:-1])
+            shot_distance = 0
+            if shot_distance_string[-1] == "'":
+                shot_distance = int(shot_distance_string[:-1])
             shot_text = ""
             for piece in play_text_pieces[3:]:
                 shot_text += ' ' + piece
@@ -372,7 +374,9 @@ def get_plays(game_link, plays_raw, away_players, home_players, starters):
             if '3PT' in play_text_pieces:
                 points = 3
             if "Free" in play_text_pieces:
-                shot_text = play_text_pieces[2:].join(' ')
+                shot_text = ""
+                for piece in play_text_pieces[2:]:
+                    shot_text += piece + ' '
                 points = 1
                 play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720-seconds), away_score=away_score, home_score=home_score, current_away_5=current_away_players, current_home_5=current_home_players, player1_ID=scorer, home_team=home_team, shot=True, made=False, attempted_points=points, shot_type=shot_text))
             else:
@@ -385,8 +389,9 @@ def get_plays(game_link, plays_raw, away_players, home_players, starters):
             if scorer in home_players:
                 home_team = True
             shot_distance_string = play_text_pieces[1]
-            print(shot_distance_string)
-            shot_distance = int(shot_distance_string[:-1])
+            shot_distance = 0
+            if shot_distance_string[-1] == "'":
+                shot_distance = int(shot_distance_string[:-1])
             points = 2
             if '3PT' in play_text_pieces:
                 points = 3
@@ -397,7 +402,7 @@ def get_plays(game_link, plays_raw, away_players, home_players, starters):
                 text_end_index = play_text_pieces.index("PTS)") - 1
                 shot_text = ""
                 for piece in play_text_pieces[text_start_index:text_end_index]:
-                    shot_text += ' ' + piece
+                    shot_text += piece + ' '
                 play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720 - seconds), away_score=away_score, home_score=home_score, current_away_5=current_away_players, current_home_5=current_home_players, player1_ID=scorer, home_team=home_team, shot=True, made=True, attempted_points=points, shot_type=shot_text))
 
             else:
@@ -405,7 +410,7 @@ def get_plays(game_link, plays_raw, away_players, home_players, starters):
                 text_end_index = play_text_pieces.index("PTS)") - 1
                 shot_text = ""
                 for piece in play_text_pieces[text_start_index:text_end_index]:
-                    shot_text += ' ' + piece
+                    shot_text += piece + ' '
 
                 if "AST)" in play_text_pieces:
                     assist_index = play_text_pieces.index("AST)")
@@ -424,11 +429,12 @@ def get_plays(game_link, plays_raw, away_players, home_players, starters):
                 home_team = True
 
             offensive, defensive = rebound_tally.get(rebounder, (0, 0))
-            offensive_text = play_text_pieces[2]
-            offensive_total = int(offensive_text[5])
-            defensive_text = play_text_pieces[3]
-            defensive_total = int(defensive_text[4])
-            if offensive_total > offensive:
+            offensive_rebs = 0
+            for piece in play_text_pieces:
+                if (len(piece) == 6 or len(piece) == 7) and piece[:5] == '(Off:':
+                    offensive_rebs = int(piece[5:])
+
+            if offensive_rebs > offensive:
                 play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720-seconds), away_score=away_score, home_score=home_score, current_away_5=current_away_players, current_home_5=current_home_players, player1_ID=rebounder, home_team=home_team, ORB=True))
                 offensive += 1
             else:
