@@ -26,32 +26,31 @@ def main():
             existing_game_data = csv.DictReader(existing_data_file)
             for row in existing_game_data:
                 games_saved.add(row['game_link'])
-    
-    
-
-        
-
-    
-
 
     number_of_previous_days = int(input("How many days of games would you like to get the data for?\n"))
 
-    # first we get the data we want from the NBA website - I STILL NEED TO IMPLEMENT THE DAYS BIT OF IT
-    games_saved = get_data(number_of_previous_days, games_saved)
+    # We get the data for the games played on those days from the NBA website
+    games_played, boxscores, plays = get_data(number_of_previous_days, games_saved)
 
-    # Update the games_saved info in the database
+    """
+    # Then we update our CSV files
+    for game in games_played:
 
+
+    for boxscore in boxscores:
+    
+
+    for play in plays:
+
+    """
     print('all finished')
 
 class Game_Data:
-    def __init__(self, date, away_team, home_team, game_link, away_scores, home_scores, plays):
+    def __init__(self, date, away_team, home_team, game_link):
         self.date = date
         self.away_team = away_team
         self.home_team = home_team
         self.game_link = game_link
-        self.away_scores = away_scores
-        self.home_scores = home_scores
-        self.plays = plays
 
 class Box_Score:
     def __init__(self, game_link, player_name, home, played, started, seconds, FGM, FGA, TPM, TPA, FTM, FTA, ORB, DRB, assists, steals, blocks, TO, PF, plus_minus):
@@ -77,15 +76,15 @@ class Box_Score:
         self.plus_minus = plus_minus
 
 class Play:
-    def __init__(self, game_ID, quarter, seconds, away_score, home_score, player1_ID, player2_ID, home, shot=False, made=False, attempted_points=0, substitution=False, ORB=False, DRB=False, steal=False, foul=False, shot_type="", block=False):
-        self.game_ID = game_ID
+    def __init__(self, game_link, quarter, seconds, away_score, home_score, player1_ID="", player2_ID="", home_team, shot=False, made=False, attempted_points=0, shot_distance=0, shot_type="", substitution=False, ORB=False, DRB=False, steal=False, foul=False, block=False):
+        self.game_link = game_link
         self.quarter = quarter
         self.seconds = seconds
         self.away_score = away_score
         self.home_score = home_score
         self.player1_ID = player1_ID
         self.player2_ID = player2_ID
-        self.home = home
+        self.home_team = home_team
         self.shot = shot
         self.made = made
         self.attempted_points = attempted_points
@@ -107,6 +106,10 @@ def get_data(number_of_previous_days, games_already_saved):
         return []
 
     prefix = 'https://www.nba.com/games?date='
+
+    game_objects = list()
+    boxscore_objects = list()
+    play_objects = list()
 
     # this goes back over a number of days to get the HTTP links for the games that happened on those days.  
     for n in range(number_of_previous_days, 0, -1):
@@ -133,10 +136,16 @@ def get_data(number_of_previous_days, games_already_saved):
                 # now we save the link to the game_links list
                 if link not in games_already_saved:
                     games_already_saved.add(link)
-                    game_obj = get_game_data(link, nth_date_string)
-                    save_game_data(game_obj)
+                    game_obj, away_boxscores, home_boxscores, plays = get_game_data(link, nth_date_string)
+                    game_objects.append(game_obj)
+                    for boxscore in away_boxscores:
+                        boxscore_objects.append(boxscore)
+                    for boxscore in home_boxscores:
+                        boxscore_objects.append(boxscore)
+                    for play in plays:
+                        play_objects.append(plays)
 
-    return games_already_saved
+    return game_objects, boxscore_objects, play_objects
 
 def get_game_data(link, date_string):
     service = Service(executable_path=ChromeDriverManager().install())
@@ -183,12 +192,12 @@ def get_game_data(link, date_string):
         plays_raw.append(p.text)
     plays = get_plays(link, plays_raw, starters)
 
-    game_obj = Game_Data(date=date_string, home_team=home_team, away_team=away_team, game_link=link, away_scores=away_boxscores, home_scores=home_boxscores, plays=plays)
+    game_obj = Game_Data(date=date_string, home_team=home_team, away_team=away_team, game_link=link)
 
     # Now we have all of the info for each of the games, we can close the driver
     driver.quit()
 
-    return game_obj
+    return game_obj, away_boxscores, home_boxscores, plays
 
 def get_boxscores(link, boxscore_string, home):
     starting_players = list()
@@ -287,7 +296,9 @@ def get_seconds_from_minutes(minutes):
     else:
         return 0
 
-def get_plays(game_link, plays, starters):
+def get_plays(game_link, plays_raw, starters):
+    print(plays_raw)
+    
     play_objects = list()
     
     period = 1
@@ -295,23 +306,42 @@ def get_plays(game_link, plays, starters):
     away_players = starters[:5]
     home_players = starters[5:]
 
-    for play in plays:
+    away_score = 0
+    home_score = 0
+
+    for play in plays_raw:
         information_pieces = play.split('\n')
         
-        if len(information_pieces) == 0:
+        if len(information_pieces) <= 1:
             continue
-            
+
         minutes_string = information_pieces[0]
         seconds = get_seconds_from_minutes(minutes_string)
         if (seconds > last_seconds):
             period += 1
         last_seconds = seconds
 
-    return plays
+        text = information_pieces[1]
+        
+        if len(information_pieces) == 3:
+            scores = information_pieces[1].split(' - ')
+            away_score = scores[0]
+            home_score = scores[1]
+
+            text = information_pieces[2]
+        
+
+        play_text_pieces = text.split(' ')
+        if play_text_pieces[0] == "MISS":
+            scorer = play_text_pieces[1]
+            home_team = 
+            points = 
+            shot_distance = play_text_pieces
+            shot_text = 
+            play_objects.append(Play(game_link=game_link, quarter=period, seconds=(720-seconds), away_score=away_score, home_score=home_score, player1_ID=scorer, home_team=home_team, shot=True, made=False, attempted_points=points, shot_distance=shot_distance, shot_type=shot_text))
 
 
-def save_game_data(game_object):
-    ____
+    return play_objects
 
 if __name__ == '__main__':
     main()
