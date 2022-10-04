@@ -8,13 +8,31 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 import time
+import csv
+import os
+from pathlib import Path
+    
 
 
 def main():
     # Check local database (if there is one) and get the list of games already saved
+    games_saved = set()
+    
+    # If there is not the desired directory, then make it.
+    os.makedirs('../../NBA data', exist_ok=True)
+
+    if Path('../../NBA data/data.csv').exists():
+        with open('../../NBA data/data.csv', 'r') as existing_data_file:
+            existing_game_data = csv.DictReader(existing_data_file)
+            for row in existing_game_data:
+                games_saved.add(row['game_link'])
+    
     
 
-    games_saved = set()
+        
+
+    
+
 
     number_of_previous_days = int(input("How many days of games would you like to get the data for?\n"))
 
