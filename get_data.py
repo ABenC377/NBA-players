@@ -104,6 +104,7 @@ class Play:
         self.shot = shot
         self.made = made
         self.attempted_points = attempted_points
+        self.shot_distance = shot_distance
         self.substitution = substitution
         self.ORB = ORB
         self.DRB = DRB
@@ -159,7 +160,7 @@ def get_data(number_of_previous_days, games_already_saved):
                     for boxscore in home_boxscores:
                         boxscore_objects.append(boxscore)
                     for play in plays:
-                        play_objects.append(plays)
+                        play_objects.append(play)
 
     return game_objects, boxscore_objects, play_objects
 
