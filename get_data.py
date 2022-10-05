@@ -172,14 +172,15 @@ def get_game_data(link, date_string):
     away_team = ""
     home_team = ""
 
-    headers = driver.find_elements(By.TAG_NAME, "h1")
+    headers = driver.find_elements(By.TAG_NAME, "h2")
     for h in headers:
-            spans = h.find_elements(By.TAG_NAME, "span")
-            for s in spans:
-                if away_team == "":
-                    away_team = s.text
-                else:
-                    home_team = s.text
+        
+        divs = h.find_elements(By.TAG_NAME, "div")
+        for d in divs:
+            if away_team == "":
+                away_team = d.text
+            else:
+                home_team = d.text
     
     boxes = driver.find_elements(By.TAG_NAME, "table")
     
@@ -224,7 +225,6 @@ def get_boxscores(link, boxscore_string, home):
     # Then, we want to seperate out all of the individual rows of the box_score
     # The rows are separated by new lines
     team_rows = boxscore_string.split('\n')
-    print(team_rows)
 
     if len(team_rows) < 16:
         return [], [], []
