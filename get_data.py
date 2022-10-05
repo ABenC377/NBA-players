@@ -224,6 +224,10 @@ def get_boxscores(link, boxscore_string, home):
     # Then, we want to seperate out all of the individual rows of the box_score
     # The rows are separated by new lines
     team_rows = boxscore_string.split('\n')
+    print(team_rows)
+
+    if len(team_rows) < 16:
+        return [], [], []
 
     # the first row is always the header of the columns, and so we can ignore
     # After that, the name and starting position of each player are on seperate lines to that player's box score
@@ -259,20 +263,22 @@ def get_boxscores(link, boxscore_string, home):
 
         boxscores.append(box_score)
 
-    for i in range(17, len(team_rows) - 1, 2):
+    for i in range(16, len(team_rows) - 2, 2):
         player_name = team_rows[i]
         players.append(player_name)
 
         # We need to have a look in the boxscore to find out if the non-starting palyers actually Played
         # Therefore, we save the box score string for the player, and check if the first three characters are DNP
         box_string = team_rows[i + 1]
+        player_box_scores = box_string.split(' ')
 
-        if len(box_string) < 2 or box_string[0:2] == "DNP" or box_string[0:2] == "DND":
+        if len(player_box_scores) < 20 or box_string[0:2] == "DNP" or box_string[0:2] == "DND" or box_string[0:2] == "NWT":
             box_score = Box_Score(game_link=link, player_name=player_name, home=home, played=False, started=False, seconds=0, FGM=0, FGA=0, TPM=0, TPA=0, FTM=0, FTA=0, ORB=0, DRB=0, assists=0, steals=0, blocks=0, TO=0, PF=0, plus_minus=0)   
             
             boxscores.append(box_score)
 
         else:
+            player_box_scores = box_string.split(' ')
             minutes = player_box_scores[0]
             seconds = get_seconds_from_minutes(minutes)
             FGM = player_box_scores[1]
@@ -289,7 +295,7 @@ def get_boxscores(link, boxscore_string, home):
             TO = player_box_scores[16]
             PF = player_box_scores[17]
             plus_minus = player_box_scores[19]
-            box_score = Box_Score(game_link=link, player_name=player_name, home=home, played=True, started=True, seconds=seconds, FGM=FGM, FGA=FGA, TPM=TPM, TPA=TPA, FTM=FTM, FTA=FTA, ORB=ORB, DRB=DRB, assists=assists, steals=steals, blocks=blocks, TO=TO, PF=PF, plus_minus=plus_minus)   
+            box_score = Box_Score(game_link=link, player_name=player_name, home=home, played=True, started=False, seconds=seconds, FGM=FGM, FGA=FGA, TPM=TPM, TPA=TPA, FTM=FTM, FTA=FTA, ORB=ORB, DRB=DRB, assists=assists, steals=steals, blocks=blocks, TO=TO, PF=PF, plus_minus=plus_minus)   
             
             boxscores.append(box_score)
         
@@ -316,7 +322,6 @@ def get_seconds_from_minutes(minutes):
         return 0
 
 def get_plays(game_link, plays_raw, away_players, home_players, starters):
-    print(plays_raw)
     
     play_objects = list()
     
